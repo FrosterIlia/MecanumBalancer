@@ -9,8 +9,8 @@
 #define AUTO 0
 
 // Direction
-#define REVERSE 1
-#define NORMAL 0
+#define REVERSE 0
+#define NORMAL 1
 
 
 // Class for controlling a motor with a 3-wire driver
@@ -24,6 +24,7 @@ class Motor{
         _pwm_pin = pwm_pin;
         _mode = FORWARD;
         _resolution = 8;
+        _filterCoeff = 240;
 
         pinMode(_ain1_pin, OUTPUT);
         pinMode(_ain2_pin, OUTPUT);
@@ -39,6 +40,7 @@ class Motor{
         _pwm_pin = pwm_pin;
         _mode = mode;
         _resolution = 8;
+        _filterCoeff = 255;
 
         pinMode(_ain1_pin, OUTPUT);
         pinMode(_ain2_pin, OUTPUT);
@@ -119,14 +121,27 @@ class Motor{
         _resolution = resolution;
     }
 
-    void setMinSignal(uint16_t min_signal){
-        _minSignal = min_signal;
+    void setMinSignal(uint16_t minSignal){
+        _minSignal = minSignal;
     }
 
+    void tick(){
+        if (_smoothMode){
+            _filteredSpeed += (_desSpeed - _filteredSpeed) / (256 - _filterCoeff);
+            setSpeed(_filteredSpeed);
+        }
+        
+    }
+
+    void setSmooth(bool value){
+        _smoothMode = value;
+    }
+
+    void setSmoothSpeed(int16_t speed){
+        _desSpeed = speed;
+    }
 
     private:
-
-    
 
     int16_t _speed;
     uint8_t _ain1_pin, _ain2_pin, _pwm_pin;
@@ -134,13 +149,16 @@ class Motor{
     uint8_t _direction;
     uint8_t _resolution;
     uint16_t _minSignal;
+    float _filteredSpeed;
+    uint8_t _filterCoeff;
+    int16_t _desSpeed;
+    bool _smoothMode;
 
     int16_t intPow(int16_t value, int16_t power){
         int16_t result = value;
         for (uint16_t i = 1; i < power; i++){
             result *= value;
         }
-        
         return result;
     }
 };

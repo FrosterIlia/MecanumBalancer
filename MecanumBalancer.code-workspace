@@ -1,0 +1,33 @@
+{
+	"folders": [
+		{
+			"name": "MecanumBalancer",
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"esp_system.h": "c",
+			"i2c.h": "c",
+			"mpu6050.h": "c",
+			"gpio.h": "c",
+			"soc_caps.h": "c",
+			"gpio_types.h": "c",
+			"esp_intr_alloc.h": "c",
+			"esp_err.h": "c",
+			"task.h": "c",
+			"freertos.h": "c",
+			"arduino.h": "c",
+			"array": "cpp",
+			"deque": "cpp",
+			"string": "cpp",
+			"unordered_map": "cpp",
+			"unordered_set": "cpp",
+			"vector": "cpp",
+			"string_view": "cpp",
+			"initializer_list": "cpp",
+			"pins_arduino.h": "c",
+			"io_pin_remap.h": "c"
+		}
+	}
+}

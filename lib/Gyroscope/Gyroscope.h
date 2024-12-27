@@ -1,54 +1,55 @@
 #pragma once
 #include <Arduino.h>
 #include "I2Cdev.h"
-#include "MPU6050.h"
+
+#include "MPU6050_6Axis_MotionApps20.h"
 
 class Gyroscope {
 public:
-  Gyroscope() {
-    init();
 
-  }
+    volatile bool mpuFlag = false;
 
-  void begin() {
+    Gyroscope() {
+        init();
 
-    //initialize mpu 
-    mpu.initialize();
+    }
 
-    calibrate();
-  }
+    void begin() {
 
-  void calibrate() {
-    // Serial.println(mpu.getXAccelOffset());
-    // Serial.println(mpu.getYAccelOffset());
-    // Serial.println(mpu.getZAccelOffset());
-    // Serial.println(mpu.getXGyroOffset());
-    // Serial.println(mpu.getYGyroOffset());
-    // Serial.println(mpu.getZGyroOffset());
+        //initialize mpu 
+        mpu.initialize();
 
-    // mpu.setXAccelOffset(1494);
-    // mpu.setYAccelOffset(2163);
-    // mpu.setZAccelOffset(1100);
-    // mpu.setXGyroOffset(88);
-    // mpu.setYGyroOffset(25);
-    // mpu.setZGyroOffset(-6);
-  }
+        mpu.dmpInitialize();
+        mpu.setDMPEnabled(true);
+        mpu.CalibrateGyro(6);
 
-  float get_angle() {
-    int16_t ax = mpu.getAccelerationX();  // ускорение по оси Х
-    int16_t ay = mpu.getAccelerationY();
 
-    ax = constrain(ax, -16384, 16384);  // ограничиваем +-1g
-    float angle_x = ax / 16384.0;       // переводим в +-1.0
+    }
 
-    ay = constrain(ay, -16384, 16384);  // ограничиваем +-1g
-    float angle_y = ay / 16384.0;       // переводим в +-1.0
+    bool tick(){
+        if (mpuFlag && mpu.dmpGetCurrentFIFOPacket(fifoBuffer)){
 
-    int result = degrees(atan2f(angle_y, angle_x));
+            mpu.dmpGetQuaternion(&q, fifoBuffer);
+            mpu.dmpGetGravity(&gravity, &q);
+            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+            mpuFlag = false;
+            return true;
+        }
+        return false;
+    }
 
-    return result;
-  }
+    float get_angle(){
+        return degrees(ypr[1]);
+    }
+
+
 
 private:
-  MPU6050 mpu;
+
+    MPU6050 mpu;
+    
+    uint8_t fifoBuffer[45]; //buffer
+    Quaternion q;
+    VectorFloat gravity;
+    float ypr[3];
 };
