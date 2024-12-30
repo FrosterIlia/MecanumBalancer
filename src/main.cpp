@@ -6,11 +6,13 @@
 #include "Gyroscope.h"
 #include "Timer.h"
 #include "PID.h"
+#include "MotorEncoder.h"
 
 
 #define AIN1 GPIO_NUM_5
 #define AIN2 GPIO_NUM_18
 #define PWM1 GPIO_NUM_23
+#define ENC1 GPIO_NUM_36
 
 #define BIN1 GPIO_NUM_26
 #define BIN2 GPIO_NUM_33
@@ -24,9 +26,14 @@
 #define DIN2 GPIO_NUM_13
 #define PWM4 GPIO_NUM_12
 
+#define MOTORS_NUMBER 1
+
 #define MAIN_PID_DT 1
 
-int SETPOINT = 0;
+#define NUM_READ 6
+
+
+float SETPOINT = -3.4;
 
 Gyroscope gyro;
 
@@ -37,15 +44,23 @@ Motor motor2(BIN1, BIN2, PWM2);
 Motor motor3(CIN1, CIN2, PWM3);
 Motor motor4(DIN1, DIN2, PWM4);
 
+const uint8_t encoderPins[] = {ENC1};
+MotorEncoders<MOTORS_NUMBER> encoders((uint8_t*)encoderPins);
+
 Timer pidTimer(MAIN_PID_DT);
+Timer plotterTimer(100);
 
 
-Pid mainPID(43.3, 181.56, 0.19, MAIN_PID_DT);
+//Pid mainPID(43.3, 181.56, 0.19, MAIN_PID_DT);
+Pid mainPID(0, 0, 0, MAIN_PID_DT);
 
 uint32_t timerPID;
 
 void setupMotors();
 void setupPortal();
+void IRAM_ATTR MotorEncoderISR();
+float getFilterSpeed();
+float median(float newVal);
 
 void build() {
   GP.BUILD_BEGIN();
@@ -102,13 +117,14 @@ void action() {
     }
 }
 
-void dmpReady() {
+void IRAM_ATTR dmpReady() {
   gyro.mpuFlag = true;
 }
 
 
 void setup(){
     Serial.begin(9600);
+    Serial.setTimeout(5);
 
     Wire.begin(21, 22);
     Wire.setClock(1000000UL);
@@ -122,34 +138,87 @@ void setup(){
     mainPID.set_direction(REVERSE);
 
     setupPortal();
+
+    encoders.attach(MotorEncoderISR);
 }
+
+int speed = 0;
 
 void loop(){
 
     portal.tick();
+    encoders.tick();
+    motor4.tick();
 
-    if (pidTimer.isReady()){
-        if (gyro.tick()){
-            mainPID.input = gyro.get_angle();
+    // if (pidTimer.isReady()){
+    //     if (gyro.tick()){
+    //         mainPID.input = gyro.get_angle();
         
-            mainPID.compute();
+    //         mainPID.compute();
 
-            if (abs(SETPOINT - gyro.get_angle()) <= 0){
-                motor1.setSpeed(0);
-                motor2.setSpeed(0);
-                motor3.setSpeed(0);
-                motor4.setSpeed(0);
+
+
+    //         motor1.setSpeed(mainPID.get_output());
+    //         motor2.setSpeed(mainPID.get_output());
+    //         motor3.setSpeed(mainPID.get_output());
+    //         motor4.setSpeed(mainPID.get_output());    
+
+    //     }
+    // }
+    
+
+    if (Serial.available() > 1){
+        char key = Serial.read();
+
+        switch(key){
+            case 's':
+            if (Serial.parseInt() == 0){
+                motor1.setMode(STOP);
+                motor2.setMode(STOP);
+                motor3.setMode(STOP);
+                motor4.setMode(STOP);
             }
             else{
-                motor1.setSpeed(mainPID.get_output());
-                motor2.setSpeed(mainPID.get_output());
-                motor3.setSpeed(mainPID.get_output());
-                motor4.setSpeed(mainPID.get_output());    
+                motor1.setMode(AUTO);
+                motor2.setMode(AUTO);
+                motor3.setMode(AUTO);
+                motor4.setMode(AUTO);
             }
-        }
-    }
-        
+            break;
 
+            case 'v':
+
+                speed = Serial.parseInt();
+                // motor1.setSpeed(speed);
+                // motor2.setSpeed(speed);
+                // motor3.setSpeed(speed);
+                motor4.setSmoothSpeed(speed); 
+            break;
+            
+        }
+        
+    }
+
+    if (plotterTimer.isReady()){
+        Serial.print("{MyPlot(ENC1:");
+        Serial.print(median(encoders.getSpeed(0)));
+        Serial.print(")}");
+    }
+
+}
+
+void IRAM_ATTR MotorEncoderISR(){
+    encoders.tickISR();
+}
+
+
+
+float median(float newVal) {
+  static float buf[3];
+  static byte count = 0;
+  buf[count] = newVal;
+  if (++count >= 3) count = 0;
+  return (max(buf[0], buf[1]) == max(buf[1], buf[2])) ? max(buf[0], buf[2]) : max(buf[1], min(buf[0], buf[2]));
 }
 
 void setupMotors(){
