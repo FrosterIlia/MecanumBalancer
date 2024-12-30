@@ -17,16 +17,19 @@
 #define BIN1 GPIO_NUM_26
 #define BIN2 GPIO_NUM_33
 #define PWM2 GPIO_NUM_25
+#define ENC2 GPIO_NUM_39
 
 #define CIN1 GPIO_NUM_2
 #define CIN2 GPIO_NUM_4
 #define PWM3 GPIO_NUM_19
+#define ENC3 GPIO_NUM_35
 
 #define DIN1 GPIO_NUM_15
 #define DIN2 GPIO_NUM_13
 #define PWM4 GPIO_NUM_12
+#define ENC4 GPIO_NUM_32
 
-#define MOTORS_NUMBER 1
+#define MOTORS_NUMBER 4
 
 #define MAIN_PID_DT 1
 
@@ -44,8 +47,6 @@ Motor motor2(BIN1, BIN2, PWM2);
 Motor motor3(CIN1, CIN2, PWM3);
 Motor motor4(DIN1, DIN2, PWM4);
 
-const uint8_t encoderPins[] = {ENC1};
-MotorEncoders<MOTORS_NUMBER> encoders((uint8_t*)encoderPins);
 
 Timer pidTimer(MAIN_PID_DT);
 Timer plotterTimer(100);
@@ -58,64 +59,76 @@ uint32_t timerPID;
 
 void setupMotors();
 void setupPortal();
-void IRAM_ATTR MotorEncoderISR();
+void IRAM_ATTR encoderISR1();
+void IRAM_ATTR encoderISR2();
+void IRAM_ATTR encoderISR3();
+void IRAM_ATTR encoderISR4();
+void attachEncoders();
+void tickEncoders();
 float getFilterSpeed();
 float median(float newVal);
 
-void build() {
-  GP.BUILD_BEGIN();
-  GP.THEME(GP_DARK);
+
+
+MotorEncoder encoder1(ENC1);
+MotorEncoder encoder2(ENC2);
+MotorEncoder encoder3(ENC3);
+MotorEncoder encoder4(ENC4);
+
+// void build() {
+//   GP.BUILD_BEGIN();
+//   GP.THEME(GP_DARK);
   
-  GP.SLIDER("slider_p", 0, 0, 60, 0.1, 1);
-  GP.SLIDER("slider_i", 0, 0, 250, 0.01, 3);
-  GP.SLIDER("slider_d", 0, 0, 5, 0.01, 3);
-  GP.SLIDER("slider_setpoint", SETPOINT, -20, 20, 0.1, 1);
+//   GP.SLIDER("slider_p", 0, 0, 60, 0.1, 1);
+//   GP.SLIDER("slider_i", 0, 0, 250, 0.01, 3);
+//   GP.SLIDER("slider_d", 0, 0, 5, 0.01, 3);
+//   GP.SLIDER("slider_setpoint", SETPOINT, -20, 20, 0.1, 1);
 
-  GP.BUTTON("start", "Start");
-  GP.BUTTON("stop", "Stop");
+//   GP.BUTTON("start", "Start");
+//   GP.BUTTON("stop", "Stop");
   
-  GP.BUILD_END();
-}
+//   GP.BUILD_END();
+// }
 
-void action() {
-    if (portal.click()) {
-        if (portal.click("slider_p")){
-            mainPID.kp = portal.getFloat();
-            Serial.println(mainPID.kp);
-        } 
-        if (portal.click("slider_i")){
-            mainPID.ki = portal.getFloat();
-            Serial.println(mainPID.ki);
-        } 
-        if (portal.click("slider_d")){
-            mainPID.kd = portal.getFloat() / 10;
-            Serial.println(mainPID.kd);
-        }
-        if (portal.click("slider_setpoint")){
-            SETPOINT = portal.getFloat();
-            mainPID.setpoint = SETPOINT;
-            Serial.println(SETPOINT);
-        }
+// void action() {
+//     if (portal.click()) {
+//         if (portal.click("slider_p")){
+//             mainPID.kp = portal.getFloat();
+//             Serial.println(mainPID.kp);
+//         } 
+//         if (portal.click("slider_i")){
+//             mainPID.ki = portal.getFloat();
+//             Serial.println(mainPID.ki);
+//         } 
+//         if (portal.click("slider_d")){
+//             mainPID.kd = portal.getFloat() / 10;
+//             Serial.println(mainPID.kd);
+//         }
+//         if (portal.click("slider_setpoint")){
+//             SETPOINT = portal.getFloat();
+//             mainPID.setpoint = SETPOINT;
+//             Serial.println(SETPOINT);
+//         }
 
-        if (portal.click("start")) {
-            motor1.setMode(AUTO);
-            motor2.setMode(AUTO);
-            motor3.setMode(AUTO);
-            motor4.setMode(AUTO);
+//         if (portal.click("start")) {
+//             motor1.setMode(AUTO);
+//             motor2.setMode(AUTO);
+//             motor3.setMode(AUTO);
+//             motor4.setMode(AUTO);
 
-            Serial.println("START");
-        }
+//             Serial.println("START");
+//         }
 
-        if (portal.click("stop")) {
-            motor1.setMode(STOP);
-            motor2.setMode(STOP);
-            motor3.setMode(STOP);
-            motor4.setMode(STOP);
+//         if (portal.click("stop")) {
+//             motor1.setMode(STOP);
+//             motor2.setMode(STOP);
+//             motor3.setMode(STOP);
+//             motor4.setMode(STOP);
 
-            Serial.println("STOP");
-        }
-    }
-}
+//             Serial.println("STOP");
+//         }
+//     }
+// }
 
 void IRAM_ATTR dmpReady() {
   gyro.mpuFlag = true;
@@ -123,6 +136,7 @@ void IRAM_ATTR dmpReady() {
 
 
 void setup(){
+    // noInterrupts();
     Serial.begin(9600);
     Serial.setTimeout(5);
 
@@ -137,17 +151,19 @@ void setup(){
     mainPID.setpoint = SETPOINT;
     mainPID.set_direction(REVERSE);
 
-    setupPortal();
+    // setupPortal();
 
-    encoders.attach(MotorEncoderISR);
+    attachEncoders();
 }
 
 int speed = 0;
 
 void loop(){
-
     portal.tick();
-    encoders.tick();
+    tickEncoders();
+    motor1.tick();
+    motor2.tick();
+    motor3.tick();
     motor4.tick();
 
     // if (pidTimer.isReady()){
@@ -189,9 +205,9 @@ void loop(){
             case 'v':
 
                 speed = Serial.parseInt();
-                // motor1.setSpeed(speed);
-                // motor2.setSpeed(speed);
-                // motor3.setSpeed(speed);
+                motor1.setSmoothSpeed(speed);
+                motor2.setSmoothSpeed(speed);
+                motor3.setSmoothSpeed(speed);
                 motor4.setSmoothSpeed(speed); 
             break;
             
@@ -201,25 +217,48 @@ void loop(){
 
     if (plotterTimer.isReady()){
         Serial.print("{MyPlot(ENC1:");
-        Serial.print(median(encoders.getSpeed(0)));
+        Serial.print(encoder1.getSpeed());
+        Serial.print(",ENC2:");
+        Serial.print(encoder2.getSpeed());
+        Serial.print(",ENC3:");
+        Serial.print(encoder3.getSpeed());
+        Serial.print(",ENC4:");
+        Serial.print(encoder4.getSpeed());
         Serial.print(")}");
     }
 
 }
 
-void IRAM_ATTR MotorEncoderISR(){
-    encoders.tickISR();
+void IRAM_ATTR encoderISR1(){
+    encoder1.incTick();
+}
+void IRAM_ATTR encoderISR2(){
+    encoder2.incTick();
+
+}
+void IRAM_ATTR encoderISR3(){
+    encoder3.incTick();
+}
+void IRAM_ATTR encoderISR4(){
+    encoder4.incTick();
+}
+
+void attachEncoders(){
+    encoder1.attach(encoderISR1);
+    encoder2.attach(encoderISR2);
+    encoder3.attach(encoderISR3);
+    encoder4.attach(encoderISR4);
+}
+
+void tickEncoders(){
+    encoder1.tick();
+    encoder2.tick();
+    encoder3.tick();
+    encoder4.tick();
 }
 
 
 
-float median(float newVal) {
-  static float buf[3];
-  static byte count = 0;
-  buf[count] = newVal;
-  if (++count >= 3) count = 0;
-  return (max(buf[0], buf[1]) == max(buf[1], buf[2])) ? max(buf[0], buf[2]) : max(buf[1], min(buf[0], buf[2]));
-}
 
 void setupMotors(){
 
@@ -245,16 +284,16 @@ void setupMotors(){
     motor4.setMode(AUTO);
 }
 
-void setupPortal(){
-    WiFi.mode(WIFI_STA);
-    WiFi.begin("dlink-7850", "wsusa58776");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println(WiFi.localIP());
+// void setupPortal(){
+//     WiFi.mode(WIFI_STA);
+//     WiFi.begin("dlink-7850", "wsusa58776");
+//     while (WiFi.status() != WL_CONNECTED) {
+//         delay(500);
+//         Serial.print(".");
+//     }
+//     Serial.println(WiFi.localIP());
 
-    portal.attachBuild(build);
-    portal.attach(action);
-    portal.start();
-}
+//     portal.attachBuild(build);
+//     portal.attach(action);
+//     portal.start();
+// }

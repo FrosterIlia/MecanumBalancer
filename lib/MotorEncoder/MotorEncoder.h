@@ -5,12 +5,12 @@
 
 #define AVERAGING_BUFFER 5
 
-float midArifm(float newVal);
+
 
 class MotorEncoder{
     public:
 
-    MotorEncoder() {}
+
 
     MotorEncoder(uint8_t pin){
         init();
@@ -19,6 +19,11 @@ class MotorEncoder{
         _timer = millis();
         _prevTime = millis();
         pinMode(_pin, INPUT);
+        
+    }
+
+    void attach(void (*function)()){
+        attachInterrupt(_pin, function, CHANGE);
     }
 
     uint8_t getPin(){
@@ -27,9 +32,8 @@ class MotorEncoder{
 
     void tick(){
 
-
         if (millis() - _timer >= _period || _tickCounter >= 2){
-            _speed = midArifm((float)_tickCounter / ((float)millis() - (float)_prevTime) * 10000.0);
+            _speed = median(midArifm(((float)_tickCounter / ((float)millis() - (float)_prevTime) * 10000.0)));
             _tickCounter = 0;
             _prevTime = millis();
             _timer = millis();
@@ -43,24 +47,28 @@ class MotorEncoder{
 
 
 
-    uint16_t getSpeed(){
+    float getSpeed(){
         return _speed;
     }
 
     private:
 
+    float median(float newVal) {
+        _medianBuf[_medianCount] = newVal;
+        if (++_medianCount >= 3) _medianCount = 0;
+        return (max(_medianBuf[0], _medianBuf[1]) == max(_medianBuf[1], _medianBuf[2])) ? max(_medianBuf[0], _medianBuf[2]) : max(_medianBuf[1], min(_medianBuf[0], _medianBuf[2]));
+    }
+
     float midArifm(float newVal) {
-        static byte counter = 0; 
-        static float prevResult = 0;
-        static float sum = 0;  
-        sum += newVal; 
-        counter++;     
-        if (counter == AVERAGING_BUFFER) {    
-            prevResult = sum / AVERAGING_BUFFER; 
-            sum = 0; 
-            counter = 0; 
+
+        _sum += newVal; 
+        _counter++;     
+        if (_counter == AVERAGING_BUFFER) {    
+            _prevResult = _sum / AVERAGING_BUFFER; 
+            _sum = 0; 
+            _counter = 0; 
         }
-        return prevResult;
+        return _prevResult;
     }
 
     uint8_t _pin;
@@ -69,46 +77,9 @@ class MotorEncoder{
     uint32_t _timer;
     uint16_t _period;
     uint32_t _prevTime;
-};
-
-
-
-
-
-template < uint8_t motorsNumber >
-class MotorEncoders{
-    public:
-    MotorEncoders(const uint8_t* pins){
-        init();
-        for (uint8_t i = 0; i < motorsNumber; i++){
-            encoders[i] = MotorEncoder(pins[i]);
-        }
-    }
-
-    void attach(void (*function)()){
-        for (uint8_t i = 0; i < motorsNumber; i++){
-            attachInterrupt(encoders[i].getPin(), function, RISING);
-        }
-    }
-
-    void tickISR(){
-        for (uint8_t i = 0; i < motorsNumber; i++){
-            if (digitalRead(encoders[i].getPin())){
-                encoders[i].incTick();
-                break;
-            }
-        }
-    }
-
-    void tick(){
-        for (uint8_t i = 0; i < motorsNumber; i++){
-            encoders[i].tick();
-        }
-    }
-
-    uint16_t getSpeed(uint8_t encNumber){
-        return encoders[encNumber].getSpeed();
-    }
-
-    MotorEncoder encoders[motorsNumber];
+    byte _counter = 0;
+    float _prevResult = 0;
+    float _sum = 0;
+    float _medianBuf[3];
+    byte _medianCount;
 };

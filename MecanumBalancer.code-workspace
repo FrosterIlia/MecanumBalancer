@@ -27,7 +27,9 @@
 			"string_view": "cpp",
 			"initializer_list": "cpp",
 			"pins_arduino.h": "c",
-			"io_pin_remap.h": "c"
+			"io_pin_remap.h": "c",
+			"functional": "cpp",
+			"algorithm": "cpp"
 		}
 	}
 }

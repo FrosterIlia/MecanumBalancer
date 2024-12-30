@@ -24,7 +24,7 @@ class Motor{
         _pwm_pin = pwm_pin;
         _mode = FORWARD;
         _resolution = 8;
-        _filterCoeff = 200;
+        _filterCoeff = 230;
 
         pinMode(_ain1_pin, OUTPUT);
         pinMode(_ain2_pin, OUTPUT);
@@ -40,7 +40,7 @@ class Motor{
         _pwm_pin = pwm_pin;
         _mode = mode;
         _resolution = 8;
-        _filterCoeff = 200;
+        _filterCoeff = 230;
 
         pinMode(_ain1_pin, OUTPUT);
         pinMode(_ain2_pin, OUTPUT);
