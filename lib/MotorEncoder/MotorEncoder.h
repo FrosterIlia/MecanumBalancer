@@ -6,17 +6,13 @@
 #define AVERAGING_BUFFER 5
 
 
-
 class MotorEncoder{
     public:
-
-
 
     MotorEncoder(uint8_t pin){
         init();
         _pin = pin;
         _period = 100;
-        _timer = millis();
         _prevTime = millis();
         pinMode(_pin, INPUT);
         
@@ -30,22 +26,31 @@ class MotorEncoder{
         return _pin;
     }
 
-    void tick(){
+    bool tick(){
 
-        if (millis() - _timer >= _period || _tickCounter >= 2){
+        if ( abs(_tickCounter) >= 2 && _timerOn){
             _speed = median(midArifm(((float)_tickCounter / ((float)millis() - (float)_prevTime) * 10000.0)));
             _tickCounter = 0;
             _prevTime = millis();
-            _timer = millis();
-            
+            return true;
         }
+        if (!_timerOn) _speed = 0;
+
+        if (millis() - _prevTime >= _period) _timerOn = false;
+        return false;
     }
 
     void incTick(){
         _tickCounter++;
     }
+    
+    void decTick(){
+        _tickCounter--;
+    }
 
-
+    void setTimerOn(){
+        _timerOn = true;
+    }
 
     float getSpeed(){
         return _speed;
@@ -72,9 +77,8 @@ class MotorEncoder{
     }
 
     uint8_t _pin;
-    volatile uint16_t _tickCounter;
+    volatile int16_t _tickCounter;
     float _speed;
-    uint32_t _timer;
     uint16_t _period;
     uint32_t _prevTime;
     byte _counter = 0;
@@ -82,4 +86,6 @@ class MotorEncoder{
     float _sum = 0;
     float _medianBuf[3];
     byte _medianCount;
+    bool _timerOn = true;
+    
 };

@@ -24,7 +24,7 @@ class Motor{
         _pwm_pin = pwm_pin;
         _mode = FORWARD;
         _resolution = 8;
-        _filterCoeff = 230;
+        _filterCoeff = 235;
 
         pinMode(_ain1_pin, OUTPUT);
         pinMode(_ain2_pin, OUTPUT);
@@ -40,7 +40,7 @@ class Motor{
         _pwm_pin = pwm_pin;
         _mode = mode;
         _resolution = 8;
-        _filterCoeff = 230;
+        _filterCoeff = 235;
 
         pinMode(_ain1_pin, OUTPUT);
         pinMode(_ain2_pin, OUTPUT);
@@ -139,6 +139,17 @@ class Motor{
 
     void setSmoothSpeed(int16_t speed){
         _desSpeed = speed;
+    }
+
+    bool getCurrentDirection(){
+        if (_mode == AUTO){
+            if (_speed >= 0) return false;
+            return true;
+        }
+        else if (_mode == FORWARD) return true;
+        else if (_mode == BACKWARDS) return false;
+
+        else return true;
     }
 
     private:
